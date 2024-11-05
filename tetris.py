@@ -1,8 +1,7 @@
-import pygame as pg
+import pygame
 import random, time, sys  # noqa: E401
 from pygame.locals import K_UP, K_DOWN, K_LEFT, K_RIGHT, K_ESCAPE, K_RETURN, K_SPACE, KEYDOWN, KEYUP, QUIT
 import config
-from render import Render
 
 def calcSpeed(points):
     # вычисляет уровень
@@ -25,28 +24,21 @@ def addToCup(cup, fig):  # sourcery skip: use-itertools-product
             if config.figures[fig['shape']][fig['rotation']][y][x] != config.empty:
                 cup[x + fig['x']][y + fig['y']] = fig['color']
 
-def getkKey():
-    for event in pg.event.get():
-        if event.type == QUIT:
-            return 303
-        if event.type == KEYUP:
-            return event.key
-
 def checkKeys():
     quitGame()
-    return next((event.key for event in pg.event.get([KEYDOWN, KEYUP]) if event.type != KEYDOWN), None)
+    return next((event.key for event in pygame.event.get([KEYDOWN, KEYUP]) if event.type != KEYDOWN), None)
 
 def shutdown():
-    pg.quit()
+    pygame.quit()
     sys.exit()
 
 def quitGame():
-    for _ in pg.event.get(QUIT): # проверка всех событий, приводящих к выходу из игры
-        shutdown() 
-    for event in pg.event.get(KEYUP): 
+    for _ in pygame.event.get(QUIT): # проверка всех событий, приводящих к выходу из игры
+        shutdown()
+    for event in pygame.event.get(KEYUP): 
         if event.key == K_ESCAPE:
             shutdown() 
-        pg.event.post(event) 
+        pygame.event.post(event) 
 
     
 def checkPos(cup, fig, adjX=0, adjY=0):
@@ -90,3 +82,73 @@ def clearCompleted(cup):  # sourcery skip: invert-any-all
             y -= 1 
     return removed_lines
 
+class TetrisEngine:
+    def __init__(self):
+        self.points = 0 
+        self.cup = [[config.empty] * config.cup_h for _ in range(config.cup_w)]
+        self.fps_clock = pygame.time.Clock()
+        self.display_surf = pygame.display.set_mode((config.window_w, config.window_h))
+        self.basic_font = pygame.font.SysFont('arial', 20)
+        self.big_font = pygame.font.SysFont('verdana', 45)
+        self.game_on = False
+        self.last_fall = time.time()
+        self.last_time = [time.time(), time.time()] # [move down, move side]
+        self.going = [0,0,0] # [down, left, right]
+        self.dir = {
+            K_DOWN: 0,
+            K_LEFT: 1,
+            K_RIGHT: 2
+        }
+        self.level, self.fall_speed = calcSpeed(self.points)
+        self.fallingFig = getNewFig()
+        self.nextFig = getNewFig()
+    
+    def run(self):
+        ...
+    
+    def draw(self):
+        ...
+    
+    def waitKeys(self):
+        while not next((event.key for event in pygame.event.get(KEYUP)), None):
+            quitGame()
+            pygame.display.update()
+            self.fps_clock.tick()
+    
+    def tryRotate(self):
+        self.fallingFig['rotation'] = (self.fallingFig['rotation'] + 1) % len(config.figures[self.fallingFig['shape']])
+        if not checkPos(self.cup, self.fallingFig):
+            self.fallingFig['rotation'] = (self.fallingFig['rotation'] - 1) % len(config.figures[self.fallingFig['shape']])
+    def hardDrop(self):
+        return next((i - 1 for i in range(1, config.cup_h) if not checkPos(self.cup, self.fallingFig, adjY=i)), 0)
+    
+    def moveFigure(self, going_i, dir, val, time_i, adjX = 0, adjY = 0):
+        """
+        try to move the falling figure in the given direction
+
+        going_i : the index in self.going to increment [down, left, right]
+        dir : the key in self.fallingFig to increment (X or Y)
+        val : the value to add to going_i and dir (1 or -1)
+        adjY : the adjustment in the y coordinate to use in checkPos (0 or val)
+        adjX : the adjustment in the x coordinate to use in checkPos (0 or val)
+        time : the index in self.last_time to set to the current time [down or side]
+
+        if the move is possible, sets the last time to the current time
+        """
+        self.going[going_i] = val
+        if checkPos(self.cup, self.fallingFig, adjX=adjX, adjY=adjY):
+            self.fallingFig[dir] += val
+            self.last_time[time_i] = time.time()
+    
+    def fall(self):
+        if time.time() - self.last_fall > self.fall_speed:  # свободное падение фигуры
+            if not checkPos(self.cup, self.fallingFig, adjY=1):  # проверка "приземления" фигуры
+                addToCup(self.cup, self.fallingFig)  # фигура приземлилась, добавляем ее в содержимое стакана
+                self.points += clearCompleted(self.cup)
+                self.level, self.fall_speed = calcSpeed(self.points)
+                self.fallingFig = None
+            else: # фигура пока не приземлилась, продолжаем движение вниз
+                self.fallingFig['y'] += 1
+                self.last_fall = time.time()
+            #print(self.going)
+            
