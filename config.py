@@ -1,4 +1,4 @@
-fps = 60
+fps = 25
 window_w, window_h = 600, 500
 block, cup_h, cup_w = 20, 20, 10
 

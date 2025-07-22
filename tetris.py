@@ -1,7 +1,8 @@
 import pygame
-import random, time, sys  # noqa: E401
+import random, sys  # noqa: E401
 from pygame.locals import K_UP, K_DOWN, K_LEFT, K_RIGHT, K_ESCAPE, K_RETURN, K_SPACE, KEYDOWN, KEYUP, QUIT
 import config
+from time import time
 
 def calcSpeed(points):
     # вычисляет уровень
@@ -23,23 +24,6 @@ def addToCup(cup, fig):  # sourcery skip: use-itertools-product
         for y in range(config.fig_h):
             if config.figures[fig['shape']][fig['rotation']][y][x] != config.empty:
                 cup[x + fig['x']][y + fig['y']] = fig['color']
-
-def checkKeys():
-    quitGame()
-    return next((event.key for event in pygame.event.get([KEYDOWN, KEYUP]) if event.type != KEYDOWN), None)
-
-def shutdown():
-    pygame.quit()
-    sys.exit()
-
-def quitGame():
-    for _ in pygame.event.get(QUIT): # проверка всех событий, приводящих к выходу из игры
-        shutdown()
-    for event in pygame.event.get(KEYUP): 
-        if event.key == K_ESCAPE:
-            shutdown() 
-        pygame.event.post(event) 
-
     
 def checkPos(cup, fig, adjX=0, adjY=0):
     """
@@ -91,8 +75,27 @@ class TetrisEngine:
         self.basic_font = pygame.font.SysFont('arial', 20)
         self.big_font = pygame.font.SysFont('verdana', 45)
         self.game_on = False
-        self.last_fall = time.time()
-        self.last_time = [time.time(), time.time()] # [move down, move side]
+        self.last_fall = time()
+        self.last_time = [time(), time()] # [move down, move side]
+        self.going = [0,0,0] # [down, left, right]
+        self.dir = {
+            K_DOWN: 0,
+            K_LEFT: 1,
+            K_RIGHT: 2
+        }
+        self.level, self.fall_speed = calcSpeed(self.points)
+        self.fallingFig = getNewFig()
+        self.nextFig = getNewFig()
+    
+    def resetGame(self):
+        self.points = 0 
+        self.cup = [[config.empty] * config.cup_h for _ in range(config.cup_w)]
+        self.fps_clock = pygame.time.Clock()
+        self.display_surf = pygame.display.set_mode((config.window_w, config.window_h))
+        self.basic_font = pygame.font.SysFont('arial', 20)
+        self.big_font = pygame.font.SysFont('verdana', 45)
+        self.last_fall = time()
+        self.last_time = [time(), time()] # [move down, move side]
         self.going = [0,0,0] # [down, left, right]
         self.dir = {
             K_DOWN: 0,
@@ -110,11 +113,12 @@ class TetrisEngine:
         ...
     
     def waitKeys(self):
-        while not next((event.key for event in pygame.event.get(KEYUP)), None):
-            quitGame()
+        while True:
+            for event in pygame.event.get(KEYUP):
+                if event.key:
+                    return event
             pygame.display.update()
             self.fps_clock.tick()
-    
     def tryRotate(self):
         self.fallingFig['rotation'] = (self.fallingFig['rotation'] + 1) % len(config.figures[self.fallingFig['shape']])
         if not checkPos(self.cup, self.fallingFig):
@@ -138,10 +142,10 @@ class TetrisEngine:
         self.going[going_i] = val
         if checkPos(self.cup, self.fallingFig, adjX=adjX, adjY=adjY):
             self.fallingFig[dir] += val
-            self.last_time[time_i] = time.time()
+            self.last_time[time_i] = time()
     
     def fall(self):
-        if time.time() - self.last_fall > self.fall_speed:  # свободное падение фигуры
+        if time() - self.last_fall > self.fall_speed:  # свободное падение фигуры
             if not checkPos(self.cup, self.fallingFig, adjY=1):  # проверка "приземления" фигуры
                 addToCup(self.cup, self.fallingFig)  # фигура приземлилась, добавляем ее в содержимое стакана
                 self.points += clearCompleted(self.cup)
@@ -149,6 +153,12 @@ class TetrisEngine:
                 self.fallingFig = None
             else: # фигура пока не приземлилась, продолжаем движение вниз
                 self.fallingFig['y'] += 1
-                self.last_fall = time.time()
+                self.last_fall = time()
             #print(self.going)
-            
+
+    def resetTime(self):
+        self.last_fall = time()
+        self.last_time = [time(), time()]
+    
+    def TryExit(self):
+        self.game_on = False

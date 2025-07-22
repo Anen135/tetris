@@ -38,8 +38,8 @@ class Render:
         self.drawText(self.basic_font.render('Выход: Esc', True, info_color), 550, 450)
 
     def drawTitle(self):
-        titleSurf = self.big_font.render('Тетрис Lite', True, title_color)
-        self.drawText(titleSurf, 425, 30)
+        titleSurf = self.big_font.render('Тетрис', True, title_color)
+        self.drawText(titleSurf, 385, 30)
     
     def drawBlock(self, block_x, block_y, color, pixelx=None, pixely=None):
         #отрисовка квадратных блоков, из которых состоят фигуры
@@ -67,4 +67,5 @@ class Render:
         for x in range(cup_w):
             for y in range(cup_h):
                 self.drawBlock(x, y, cup[x][y])
+
     
